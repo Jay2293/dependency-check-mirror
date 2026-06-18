@@ -17,12 +17,25 @@ jobs:
           wget https://github.com/dependency-check/DependencyCheck/releases/download/v12.1.3/dependency-check-12.1.3-release.zip
           unzip dependency-check-12.1.3-release.zip
 
-      - name: Update Database
+      - name: Cache NVD database
+        uses: actions/cache@v4
+        with:
+          path: ./data
+          key: nvd-db-${{ github.run_number }}
+          restore-keys: |
+            nvd-db-
+
+      - name: Update Database (with retry)
         run: |
-          dependency-check/bin/dependency-check.sh \
-          --updateonly \
-          --data ./data \
-          --nvdApiKey ${{ secrets.NVD_API_KEY }}
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i..."
+            dependency-check/bin/dependency-check.sh \
+              --updateonly \
+              --data ./data \
+              --nvdApiKey ${{ secrets.NVD_API_KEY }} && break
+            echo "Attempt $i failed, waiting 120s before retry..."
+            sleep 120
+          done
 
       - name: Archive
         run: |
